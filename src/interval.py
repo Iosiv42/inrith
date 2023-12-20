@@ -24,14 +24,21 @@ class Interval:
         self,
         lower_bound: int | float,
         upper_bound: int | float,
-        endnotes: Endnotes = Endnotes.AUTO
+        endnotes: Endnotes = Endnotes.AUTO,
+        *,
+        left_open: bool = None,
+        right_open: bool = None,
     ):
         self.inf, self.sup = lower_bound, upper_bound
         if isinstance(lower_bound, float) != isinstance(upper_bound, float):
             self.inf = float(lower_bound)
             self.sup = float(upper_bound)
 
-        self.__handle_endnotes(endnotes)
+        if left_open is None or right_open is None:
+            self.__handle_endnotes(endnotes)
+        else:
+            self.left_open = left_open
+            self.right_open = right_open
 
     def binary_operator(
         self, other: Self, operator: Callable[[int | float], float]
@@ -44,11 +51,12 @@ class Interval:
         vals = tuple(
             operator(i, j) for i in self.endpoints() for j in other.endpoints()
         )
-        result = Interval(min(vals), max(vals))
-        result.left_open = self.left_open or other.left_open
-        result.right_open = self.right_open or other.right_open
 
-        return result
+        return Interval(
+            min(vals), max(vals),
+            left_open=self.left_open or other.left_open,
+            right_open=self.right_open or other.right_open,
+        )
 
     def endpoints(self) -> tuple[int | float]:
         """ Return the endpoints of self in form (infimum, supremum). """
@@ -64,9 +72,20 @@ class Interval:
         return False
 
     def __repr__(self):
+        if self == Common.EMPTY:
+            return "∅"
+
         lb = self.left_brackets[self.left_open]
         rb = self.right_brackets[self.right_open]
         return f"{lb}{self.inf}{self.value_delimiter}{self.sup}{rb}"
+
+    def __eq__(self, other: Self):
+        return all((
+            self.inf == other.inf,
+            self.sup == other.sup,
+            self.left_open == other.left_open,
+            self.right_open == other.right_open,
+        ))
 
     def __add__(self, other: Self) -> Self:
         return self.binary_operator(other, type(self.inf).__add__)
@@ -87,15 +106,15 @@ class Interval:
         if other <= self:
             return other
         if self.sup in other:
-            result = Interval(other.inf, self.sup)
-            result.left_open = other.left_open
-            result.right_open = self.right_open
-            return result
+            return Interval(
+                other.inf, self.sup,
+                left_open=other.left_open, right_open=self.right_open,
+            )
         if self.inf in other:
-            result = Interval(self.inf, other.sup)
-            result.left_open = self.left_open
-            result.right_open = self.right_open
-            return result
+            return Interval(
+                self.inf, other.sup,
+                left_open=self.left_open, right_open=other.right_open,
+            )
         return Common.EMPTY
 
     def __le__(self, other: Self) -> bool:
@@ -128,9 +147,9 @@ class Interval:
                 raise ValueError("Cannot decide endpoints type.")
 
 
-class Common(Enum):
+class Common:
     """ Common intervals. """
-    EMPTY = Interval(float("nan"), float("nan"), Endnotes.OPENED)
+    EMPTY = Interval(0, 0, Endnotes.OPENED)
     REALS = Interval(float("-inf"), float("inf"))
 
 
