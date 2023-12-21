@@ -2,6 +2,8 @@
 
 from enum import IntEnum, Enum
 from typing import Callable, Self
+from itertools import product
+import math
 
 
 class Endnotes(IntEnum):
@@ -22,23 +24,32 @@ class Interval:
 
     def __init__(
         self,
-        lower_bound: int | float,
-        upper_bound: int | float,
+        infimum: int | float,
+        supremum: int | float,
         endnotes: Endnotes = Endnotes.AUTO,
         *,
         left_open: bool = None,
         right_open: bool = None,
     ):
-        self.inf, self.sup = lower_bound, upper_bound
-        if isinstance(lower_bound, float) != isinstance(upper_bound, float):
-            self.inf = float(lower_bound)
-            self.sup = float(upper_bound)
+        assert infimum <= supremum, "lower_bound has to be <= upper_bound"
+
+        self.inf, self.sup = infimum, supremum
+
+        # It's for proper self.binary_operator working.
+        if isinstance(infimum, float) != isinstance(supremum, float):
+            self.inf = float(infimum)
+            self.sup = float(supremum)
 
         if left_open is None or right_open is None:
             self.__handle_endnotes(endnotes)
         else:
             self.left_open = left_open
             self.right_open = right_open
+
+        # If interval isn't left or right bounded than it has to be
+        # left or right opened.
+        self.left_open = self.left_open >= self.left_bounded()
+        self.right_open = self.right_open >= self.right_bounded()
 
     def binary_operator(
         self, other: Self, operator: Callable[[int | float], float]
@@ -48,31 +59,90 @@ class Interval:
             for each operand in union of given intervals.
         """
 
-        vals = tuple(
-            operator(i, j) for i in self.endpoints() for j in other.endpoints()
-        )
+        vals = tuple(map(operator, product(self.infsup(), other.infsup())))
+        left_open = self.left_open or other.left_open
+        right_open = self.right_brackets or other.right_open
 
         return Interval(
             min(vals), max(vals),
-            left_open=self.left_open or other.left_open,
-            right_open=self.right_open or other.right_open,
+            left_open=left_open,
+            right_open=right_open,
         )
 
     def endpoints(self) -> tuple[int | float]:
         """ Return the endpoints of self in form (infimum, supremum). """
         return (self.inf, self.sup)
 
+    def infsup(self) -> tuple[int | float]:
+        """ Return infimum and supremum of self in form (inf., sup.). """
+        return (self.inf, self.sup)
+
+    def as_closed(self) -> Self:
+        """ Return interval as closed. """
+        return Interval(self.inf, self.sup, Endnotes.CLOSED)
+
+    def as_opened(self) -> Self:
+        """ Return interval as opened. """
+        return Interval(self.inf, self.sup, Endnotes.OPENED)
+
+    def empty(self) -> bool:
+        """ Return if interval is empty set. """
+        return (self.left_open or self.right_open) and self.inf == self.sup
+
+    def left_bounded(self) -> bool:
+        """ Return left boundness of interval. """
+        return self.inf > -float("inf") or self.empty()
+
+    def right_bounded(self) -> bool:
+        """ Return right boundness of interval. """
+        return self.sup < float("inf") or self.empty()
+
+    def bounded(self) -> bool:
+        """ Return boundness of interval. """
+        return self.left_bounded() and self.right_bounded()
+
+    def diameter(self) -> int | float:
+        """ Return diameter (length, width) of interval. """
+        return self.sup - self.inf
+
+    def center(self) -> int | float:
+        """ Return center (midpoint) of interval. """
+        if self.empty():
+            return float("nan")
+        return 0.5 * (self.inf + self.sup)
+
+    def function(
+        self, func: Callable[[int | float, ...], int | float], *args
+    ) -> Self:
+        """ Passes interval through func. func has to be
+            monotonic and bijective at range of interval.
+        """
+        vals = tuple(map(lambda i: func(i, *args), self.infsup()))
+        return Interval(
+            min(vals), max(vals),
+            left_open=self.left_open, right_open=self.right_open
+        )
+
+    def log(self, base: int | float = math.e) -> Self:
+        """ Calculate logarithm of interval with handling for negative values. """
+        if self.inf <= 0 and self.sup > 0:
+            inf = float("inf") * math.copysign(1., 1 - base)
+            return Interval(inf, math.log(self.sup, base))
+        if self.sup <= 0:
+            return Common.EMPTY
+        return self.function(math.log, base)
+
     def __contains__(self, value: int | float):
+        # Don't know such a good way to do this without ifs and using less code.
+        # It'd better if there's way to get operators depending of openness of interval.
         cond1 = self.inf <= value <= self.sup
         cond2 = not (value == self.inf and self.left_open)
         cond3 = not (value == self.sup and self.right_open)
 
-        if cond1 and cond2 and cond3:
-            return True
-        return False
+        return cond1 and cond2 and cond3
 
     def __repr__(self):
-        if self == Common.EMPTY:
+        if (self.left_open or self.right_open) and self.inf == self.sup:
             return "∅"
 
         lb = self.left_brackets[self.left_open]
@@ -101,7 +171,6 @@ class Interval:
 
     def __and__(self, other: Self) -> Self:
         if self <= other:
-            print("da")
             return self
         if other <= self:
             return other
@@ -118,6 +187,8 @@ class Interval:
         return Common.EMPTY
 
     def __le__(self, other: Self) -> bool:
+        # [inf,sup]_aux_cond are needed for half or opened intervals.
+        # E.g. for checking [0, +oo) <= (-oo, +oo), because +oo not in (-oo, +oo).
         inf_aux_cond = (self.inf == other.inf) and (self.left_open == other.left_open)
         sup_aux_cond = (self.sup == other.sup) and (self.right_open == other.right_open)
         return (
@@ -156,4 +227,5 @@ class Common:
 if __name__ == "__main__":
     i1 = Interval(0, float("inf"))
     i2 = Interval(float("-inf"), 10)
-    print(i2 & i1)
+    i3 = Interval(1, 2)
+    print(i1, i2, i3.log())
