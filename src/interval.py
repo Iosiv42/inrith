@@ -3,6 +3,7 @@
 from enum import IntEnum, Enum
 from typing import Callable, Self
 from itertools import product
+from dataclasses import dataclass
 import math
 
 
@@ -13,6 +14,33 @@ class Endnotes(IntEnum):
     RIGHT_OPEN = 1
     LEFT_OPEN = -1
     AUTO = 7
+
+
+class Endpoints(IntEnum):
+    """ Types of endpoint. """
+    INF = -1
+    SUP = 1
+
+
+@dataclass
+class Endpoint:
+    """ Endpoint of an interval. """
+    value: int | float
+    type: Endpoints
+
+    def is_inf(self) -> bool:
+        """ Is self.type is infimum? """
+        return self.type == Endpoints.INF
+
+    def is_sup(self) -> bool:
+        """ Is self.type is supremum? """
+        return self.type == Endpoints.SUP
+
+    def __hash__(self):
+        return hash((self.value, self.type))
+
+    def __repr__(self):
+        return f"({self.value} {self.type})"
 
 
 class Interval:
@@ -69,9 +97,11 @@ class Interval:
             right_open=right_open,
         )
 
-    def endpoints(self) -> tuple[int | float]:
-        """ Return the endpoints of self in form (infimum, supremum). """
-        return (self.inf, self.sup)
+    def endpoints(self) -> tuple[Endpoint]:
+        """ Return the endpoints of self in form
+            (infimum endpoint, supremum endpoint).
+        """
+        return (Endpoint(self.inf, Endpoints.INF), Endpoint(self.sup, Endpoints.SUP))
 
     def infsup(self) -> tuple[int | float]:
         """ Return infimum and supremum of self in form (inf., sup.). """
@@ -148,6 +178,9 @@ class Interval:
         lb = self.left_brackets[self.left_open]
         rb = self.right_brackets[self.right_open]
         return f"{lb}{self.inf}{self.value_delimiter}{self.sup}{rb}"
+
+    def __hash__(self):
+        return hash((self.inf, self.sup, self.left_open, self.right_open))
 
     def __eq__(self, other: Self):
         return all((
