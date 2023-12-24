@@ -1,10 +1,24 @@
 """ Real-valued interval. """
 
-from enum import IntEnum, Enum
-from typing import Callable, Self
+from enum import IntEnum
+from typing import Callable, Self, SupportsFloat
 from itertools import product
 from dataclasses import dataclass
-import math
+
+from .utils import bin_op, ifunc
+
+
+BRACKETS_FMT = {
+    True: {
+        -1: "(",
+        1: ")",
+    },
+    False: {
+        -1: "[",
+        1: "]",
+    }
+}
+VALUE_DELIMITER = ", "
 
 
 class Endnotes(IntEnum):
@@ -16,7 +30,15 @@ class Endnotes(IntEnum):
     AUTO = 7
 
 
-class Endpoints(IntEnum):
+SOME_SHIT = {
+    Endnotes.OPENED: (True, True),
+    Endnotes.CLOSED: (False, False),
+    Endnotes.RIGHT_OPEN: (False, True),
+    Endnotes.LEFT_OPEN: (True, False),
+}
+
+
+class EndpointType(IntEnum):
     """ Types of endpoint. """
     INF = -1
     SUP = 1
@@ -25,16 +47,16 @@ class Endpoints(IntEnum):
 @dataclass
 class Endpoint:
     """ Endpoint of an interval. """
-    value: int | float
-    type: Endpoints
+    value: SupportsFloat
+    type: EndpointType
 
     def is_inf(self) -> bool:
         """ Is self.type is infimum? """
-        return self.type == Endpoints.INF
+        return self.type == EndpointType.INF
 
     def is_sup(self) -> bool:
         """ Is self.type is supremum? """
-        return self.type == Endpoints.SUP
+        return self.type == EndpointType.SUP
 
     def __hash__(self):
         return hash((self.value, self.type))
@@ -46,20 +68,16 @@ class Endpoint:
 class Interval:
     """ Class describing real-valued interval. """
 
-    left_brackets = {True: "(", False: "["}
-    right_brackets = {True: ")", False: "]"}
-    value_delimiter = ", "
-
     def __init__(
         self,
-        infimum: int | float,
-        supremum: int | float,
+        infimum: SupportsFloat,
+        supremum: SupportsFloat,
         endnotes: Endnotes = Endnotes.AUTO,
         *,
         left_open: bool = None,
         right_open: bool = None,
     ):
-        assert infimum <= supremum, "lower_bound has to be <= upper_bound"
+        assert infimum <= supremum, "infimum has to be <= supremum"
 
         self.inf, self.sup = infimum, supremum
 
@@ -79,31 +97,13 @@ class Interval:
         self.left_open = self.left_open >= self.left_bounded()
         self.right_open = self.right_open >= self.right_bounded()
 
-    def binary_operator(
-        self, other: Self, operator: Callable[[int | float], float]
-    ) -> Self:
-        """ Performs binary operator on self interval and another one.
-            It'll return correct results if and only if function is monotone
-            for each operand in union of given intervals.
-        """
-
-        vals = tuple(map(operator, product(self.infsup(), other.infsup())))
-        left_open = self.left_open or other.left_open
-        right_open = self.right_brackets or other.right_open
-
-        return Interval(
-            min(vals), max(vals),
-            left_open=left_open,
-            right_open=right_open,
-        )
-
     def endpoints(self) -> tuple[Endpoint]:
         """ Return the endpoints of self in form
             (infimum endpoint, supremum endpoint).
         """
-        return (Endpoint(self.inf, Endpoints.INF), Endpoint(self.sup, Endpoints.SUP))
+        return (Endpoint(self.inf, EndpointType.INF), Endpoint(self.sup, EndpointType.SUP))
 
-    def infsup(self) -> tuple[int | float]:
+    def infsup(self) -> tuple[SupportsFloat]:
         """ Return infimum and supremum of self in form (inf., sup.). """
         return (self.inf, self.sup)
 
@@ -131,38 +131,17 @@ class Interval:
         """ Return boundness of interval. """
         return self.left_bounded() and self.right_bounded()
 
-    def diameter(self) -> int | float:
+    def diameter(self) -> SupportsFloat:
         """ Return diameter (length, width) of interval. """
         return self.sup - self.inf
 
-    def center(self) -> int | float:
+    def center(self) -> SupportsFloat:
         """ Return center (midpoint) of interval. """
         if self.empty():
             return float("nan")
         return 0.5 * (self.inf + self.sup)
 
-    def function(
-        self, func: Callable[[int | float, ...], int | float], *args
-    ) -> Self:
-        """ Passes interval through func. func has to be
-            monotonic and bijective at range of interval.
-        """
-        vals = tuple(map(lambda i: func(i, *args), self.infsup()))
-        return Interval(
-            min(vals), max(vals),
-            left_open=self.left_open, right_open=self.right_open
-        )
-
-    def log(self, base: int | float = math.e) -> Self:
-        """ Calculate logarithm of interval with handling for negative values. """
-        if self.inf <= 0 and self.sup > 0:
-            inf = float("inf") * math.copysign(1., 1 - base)
-            return Interval(inf, math.log(self.sup, base))
-        if self.sup <= 0:
-            return Common.EMPTY
-        return self.function(math.log, base)
-
-    def __contains__(self, value: int | float):
+    def __contains__(self, value: SupportsFloat):
         # Don't know such a good way to do this without ifs and using less code.
         # It'd better if there's way to get operators depending of openness of interval.
         cond1 = self.inf <= value <= self.sup
@@ -172,12 +151,12 @@ class Interval:
         return cond1 and cond2 and cond3
 
     def __repr__(self):
-        if (self.left_open or self.right_open) and self.inf == self.sup:
+        if self.empty():
             return "∅"
 
-        lb = self.left_brackets[self.left_open]
-        rb = self.right_brackets[self.right_open]
-        return f"{lb}{self.inf}{self.value_delimiter}{self.sup}{rb}"
+        lb = BRACKETS_FMT[self.left_open][-1]
+        rb = BRACKETS_FMT[self.right_open][1]
+        return f"{lb}{self.inf}{VALUE_DELIMITER}{self.sup}{rb}"
 
     def __hash__(self):
         return hash((self.inf, self.sup, self.left_open, self.right_open))
@@ -191,18 +170,27 @@ class Interval:
         ))
 
     def __add__(self, other: Self) -> Self:
-        return self.binary_operator(other, type(self.inf).__add__)
+        return bin_op(type(self.inf).__add__)(self, other)
 
     def __sub__(self, other: Self) -> Self:
-        return self.binary_operator(other, type(self.inf).__sub__)
+        return bin_op(type(self.inf).__sub__)(self, other)
 
     def __mul__(self, other: Self) -> Self:
-        return self.binary_operator(other, type(self.inf).__mul__)
+        return bin_op(type(self.inf).__mul__)(self, other)
 
     def __truediv__(self, other: Self) -> Self:
-        return self.binary_operator(other, type(self.inf).__truediv__)
+        return bin_op(type(self.inf).__truediv__)(self, other)
+
+    def __rpow__(self, other: SupportsFloat) -> Self:
+        return ifunc(lambda val: other**val)(self)
+
+    def __pow__(self, other: int) -> Self:
+        if self.inf < 0 and self.sup > 0 and other % 2 == 0:
+            return Interval(0, max(self.inf**other, self.sup**other))
+        return ifunc(lambda val: val**other)(self)
 
     def __and__(self, other: Self) -> Self:
+        # TODO can we do something with that?
         if self <= other:
             return self
         if other <= self:
@@ -229,26 +217,19 @@ class Interval:
             and (self.sup in other or sup_aux_cond)
         )
 
+    def __iter__(self):
+        yield self
+
     def __handle_endnotes(self, endnotes: Endnotes) -> None:
         """ Handle type of interval's endpoints and set right and left openness."""
-        match endnotes:
-            case Endnotes.CLOSED:
-                self.right_open = False
-                self.left_open = False
-            case Endnotes.OPENED:
-                self.right_open = True
-                self.left_open = True
-            case Endnotes.RIGHT_OPEN:
-                self.right_open = True
-                self.left_open = False
-            case Endnotes.LEFT_OPEN:
-                self.right_open = False
-                self.left_open = True
-            case Endnotes.AUTO:
-                self.left_open = self.inf == -float("inf")
-                self.right_open = self.sup == float("inf")
-            case _:
-                raise ValueError("Cannot decide endpoints type.")
+        if endnotes == Endnotes.AUTO:
+            self.left_open = abs(self.inf) == float("inf")
+            self.right_open = abs(self.sup) == float("inf")
+        else:
+            try:
+                self.left_open, self.right_open = SOME_SHIT[endnotes]
+            except KeyError as exc:
+                raise KeyError("Unsupported endnote.") from exc
 
 
 class Common:
@@ -258,7 +239,8 @@ class Common:
 
 
 if __name__ == "__main__":
-    i1 = Interval(0, float("inf"))
-    i2 = Interval(float("-inf"), 10)
-    i3 = Interval(1, 2)
-    print(i1, i2, i3.log())
+    a = Interval(-2, 1)
+    b = Interval(5., 7)
+    x = Interval(2, 64)
+    for i in a:
+        print(i)

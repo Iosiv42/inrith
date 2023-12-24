@@ -1,16 +1,15 @@
-""" Union of intervals. """
+""" Union of real-valued intervals. """
 
 from typing import Iterable
 from operator import attrgetter
-import random
 
-from interval import Interval, Common, Endpoint
+from .interval import Interval, Endpoint
+
+INTERVALS_DELIMITER = " ∪ "
 
 
-class IntervalsUnion:
+class IntervalUnion:
     """ Union of some intervals. Provides disjointness. """
-
-    intervals_delimiter = " ∪ "
 
     # TODO need to keep intervals endnotes as is.
     def __init__(self, intervals: Iterable[Interval]):
@@ -38,21 +37,23 @@ class IntervalsUnion:
                 curr_inf = endpoint.value
 
     def __repr__(self):
-        return self.intervals_delimiter.join(str(i) for i in self.intervals)
+        return INTERVALS_DELIMITER.join(map(str, self.intervals))
+
+    def __iter__(self):
+        for i in self.intervals:
+            yield i
 
     def __get_endpoints(self, intervals: Iterable[Interval]) -> list[Endpoint]:
         endpoints = set()
         for i in intervals:
             endpoints.update(i.endpoints())
-        endpoints = sorted(list(endpoints), key=attrgetter("value"))
-        return endpoints
+        return sorted(endpoints, key=attrgetter("value"))
 
 
 if __name__ == "__main__":
-    intervals = []
-    for _ in range(100):
-        inf = random.randint(-100, 100)
-        sup = inf + random.randint(0, 3)
-        intervals.append(Interval(inf, sup))
+    intervals = (
+        Interval(-1, 2),
+        Interval(1, 2),
+    )
 
-    print(IntervalsUnion(intervals))
+    print(IntervalUnion(intervals))
