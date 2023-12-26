@@ -43,6 +43,9 @@ class IntervalUnion:
         for i in self.intervals:
             yield i
 
+    def __getitem__(self, index: int):
+        return self.intervals[i]
+
     def __get_endpoints(self, intervals: Iterable[Interval]) -> list[Endpoint]:
         endpoints = set()
         for i in intervals:

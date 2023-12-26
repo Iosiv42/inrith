@@ -220,6 +220,9 @@ class Interval:
     def __iter__(self):
         yield self
 
+    def __getitem(self, index: int):
+        return self
+
     def __handle_endnotes(self, endnotes: Endnotes) -> None:
         """ Handle type of interval's endpoints and set right and left openness."""
         if endnotes == Endnotes.AUTO:

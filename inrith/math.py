@@ -2,11 +2,20 @@
 
 import math
 
-from .interval import Interval
-from .interval_union import IntervalUnion
+from .utils import ifunc, copy
 
 
-def log(
-    interval: Interval | IntervalUnion, base: float = math.e
-) -> Interval | IntervalUnion:
-    NotImplemented
+def log(interval_like, base: float = math.e):
+    """ Log function over interval [union] with extra drifting. """
+
+    i_cpy = copy(interval_like)
+    func = ifunc(lambda x, base: math.log(x, base) if x > 0 else math.copysign(1., base - 1)*math.inf)
+    for idx, i in enumerate(interval_like):
+        i_cpy[idx] = func(i, base)
+
+    return i_cpy
+
+
+if __name__ == "__main__":
+    i = Interval(-1, 4)
+    print(log(i))

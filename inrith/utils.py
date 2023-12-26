@@ -1,6 +1,7 @@
 """ Utils. """
 
 import itertools
+import pickle
 from typing import Callable, SupportsFloat
 
 from .interval import Interval
@@ -46,3 +47,7 @@ def ifunc(
         )
 
     return wrapper
+
+
+def copy(obj):
+    return pickle.loads(pickle.dumps(obj))
