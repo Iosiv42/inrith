@@ -3,17 +3,19 @@
 import itertools
 import pickle
 from typing import Callable, SupportsFloat
-
-from .interval import Interval
+from functools import cache
 
 BinaryFunction = Callable[[SupportsFloat, SupportsFloat], SupportsFloat]
 
 
-def bin_op(operator: BinaryFunction) -> Callable[[Interval, Interval], Interval]:
+@cache
+def bin_op(operator: BinaryFunction) -> Callable:
     """ Returns function that takes 2 intervals and performs binary operator
         to them and produce new one. Binary operator must be monotonic
         at domain of intervals to return proper results.
     """
+
+    from .interval import Interval
 
     def wrapper(lhs: Interval, rhs: Interval) -> Interval:
         map_op = lambda v: operator(*v)
@@ -30,13 +32,15 @@ def bin_op(operator: BinaryFunction) -> Callable[[Interval, Interval], Interval]
 
     return wrapper
 
-def ifunc(
-    func: Callable[[SupportsFloat, ...], SupportsFloat]
-) -> Callable[[Interval], Interval]:
+
+@cache
+def ifunc(func: Callable[[SupportsFloat, ...], SupportsFloat]) -> Callable:
     """ Return function that takes 1 interval and performs some unary function
         to it and returns new one. func must be monotone and bijective
         at the domain of interval to return proper results.
     """
+
+    from .interval import Interval
 
     def wrapper(interval: Interval, *args) -> Interval:
         vals = tuple(func(i, *args) for i in interval.infsup())

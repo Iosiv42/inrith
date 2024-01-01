@@ -169,16 +169,24 @@ class Interval:
             self.right_open == other.right_open,
         ))
 
-    def __add__(self, other: Self) -> Self:
+    def __add__(self, other) -> Self:
+        if isinstance(other, (int, float)):
+            other = Interval(other, other)
         return bin_op(type(self.inf).__add__)(self, other)
 
     def __sub__(self, other: Self) -> Self:
+        if isinstance(other, (int, float)):
+            other = Interval(other, other)
         return bin_op(type(self.inf).__sub__)(self, other)
 
     def __mul__(self, other: Self) -> Self:
+        if isinstance(other, (int, float)):
+            other = Interval(other, other)
         return bin_op(type(self.inf).__mul__)(self, other)
 
     def __truediv__(self, other: Self) -> Self:
+        if isinstance(other, (int, float)):
+            other = Interval(other, other)
         return bin_op(type(self.inf).__truediv__)(self, other)
 
     def __rpow__(self, other: SupportsFloat) -> Self:
@@ -188,6 +196,9 @@ class Interval:
         if self.inf < 0 and self.sup > 0 and other % 2 == 0:
             return Interval(0, max(self.inf**other, self.sup**other))
         return ifunc(lambda val: val**other)(self)
+
+    def __neg__(self) -> Self:
+        return ifunc(lambda val: -val)(self)
 
     def __and__(self, other: Self) -> Self:
         # TODO can we do something with that?
