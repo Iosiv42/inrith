@@ -44,19 +44,13 @@ class IntervalUnion:
             yield i
 
     def __getitem__(self, index: int):
-        return self.intervals[i]
+        return self.intervals[index]
+
+    def __setitem__(self, index: int, val: Interval):
+        self.intervals[index] = val
 
     def __get_endpoints(self, intervals: Iterable[Interval]) -> list[Endpoint]:
         endpoints = set()
         for i in intervals:
             endpoints.update(i.endpoints())
         return sorted(endpoints, key=attrgetter("value"))
-
-
-if __name__ == "__main__":
-    intervals = (
-        Interval(-1, 2),
-        Interval(1, 2),
-    )
-
-    print(IntervalUnion(intervals))

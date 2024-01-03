@@ -1,9 +1,9 @@
 """ Real-valued interval. """
 
 from enum import IntEnum
-from typing import Callable, Self, SupportsFloat
-from itertools import product
+from typing import Self, SupportsFloat
 from dataclasses import dataclass
+from copy import deepcopy
 
 from .utils import bin_op, ifunc
 
@@ -115,6 +115,12 @@ class Interval:
         """ Return interval as opened. """
         return Interval(self.inf, self.sup, Endnotes.OPENED)
 
+    def to_float_ends(self) -> Self:
+        """ Casts interval endpoints to float type. """
+        cpy = deepcopy(self)
+        cpy.inf, cpy.sup = float(cpy.inf), float(cpy.sup)
+        return cpy
+    
     def empty(self) -> bool:
         """ Return if interval is empty set. """
         return (self.left_open or self.right_open) and self.inf == self.sup
@@ -140,6 +146,10 @@ class Interval:
         if self.empty():
             return float("nan")
         return 0.5 * (self.inf + self.sup)
+
+    def ends_type(self):
+        """ Return type of endpoints (whether int or float). """
+        return type(self.inf)
 
     def __contains__(self, value: SupportsFloat):
         # Don't know such a good way to do this without ifs and using less code.
@@ -170,24 +180,30 @@ class Interval:
         ))
 
     def __add__(self, other) -> Self:
-        if isinstance(other, (int, float)):
-            other = Interval(other, other)
-        return bin_op(type(self.inf).__add__)(self, other)
+        return self.__overload_bin_op(other, "__add__")
 
-    def __sub__(self, other: Self) -> Self:
-        if isinstance(other, (int, float)):
-            other = Interval(other, other)
-        return bin_op(type(self.inf).__sub__)(self, other)
+    def __radd__(self, other) -> Self:
+        return self.__add__(other)
 
-    def __mul__(self, other: Self) -> Self:
-        if isinstance(other, (int, float)):
-            other = Interval(other, other)
-        return bin_op(type(self.inf).__mul__)(self, other)
+    def __sub__(self, other) -> Self:
+        return self.__overload_bin_op(other, "__sub__")
 
-    def __truediv__(self, other: Self) -> Self:
+    def __rsub__(self, other) -> Self:
+        return (-self).__add__(other)
+
+    def __mul__(self, other) -> Self:
+        return self.__overload_bin_op(other, "__float__")
+
+    def __rmul__(self, other) -> Self:
+        return self.__mul__(other)
+
+    def __truediv__(self, other) -> Self:
+        return self.__overload_bin_op(other, "__truediv__")
+
+    def __rtruediv__(self, other) -> Self:
         if isinstance(other, (int, float)):
             other = Interval(other, other)
-        return bin_op(type(self.inf).__truediv__)(self, other)
+        return other.__truediv__(self)
 
     def __rpow__(self, other: SupportsFloat) -> Self:
         return ifunc(lambda val: other**val)(self)
@@ -231,8 +247,11 @@ class Interval:
     def __iter__(self):
         yield self
 
-    def __getitem(self, index: int):
+    def __getitem__(self, _: int):
         return self
+
+    def __setitem__(self, index: int, val: Self):
+        self.__dict__ = val.__dict__
 
     def __handle_endnotes(self, endnotes: Endnotes) -> None:
         """ Handle type of interval's endpoints and set right and left openness."""
@@ -246,15 +265,20 @@ class Interval:
                 raise KeyError("Unsupported endnote.") from exc
 
 
+    def __to_mutual_type(self, other: Self) -> tuple[Self, Self]:
+        if self.ends_type() == float or other.ends_type() == float:
+            return (self.to_float_ends(), other.to_float_ends(), float)
+        return (self, other, int)
+
+    def __overload_bin_op(self, other, op_name) -> Self:
+        """ Convinient usage in operator overloading. """
+        if isinstance(other, (int, float)):
+            other = Interval(other, other)
+        casted_new, casted_other, ends_type = self.__to_mutual_type(other)
+        return bin_op(getattr(ends_type, op_name))(casted_new, casted_other)
+
+
 class Common:
     """ Common intervals. """
     EMPTY = Interval(0, 0, Endnotes.OPENED)
     REALS = Interval(float("-inf"), float("inf"))
-
-
-if __name__ == "__main__":
-    a = Interval(-2, 1)
-    b = Interval(5., 7)
-    x = Interval(2, 64)
-    for i in a:
-        print(i)

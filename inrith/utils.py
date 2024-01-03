@@ -1,11 +1,11 @@
 """ Utils. """
 
 import itertools
-import pickle
-from typing import Callable, SupportsFloat
+from typing import Callable, SupportsFloat, TypeVar
 from functools import cache
 
 BinaryFunction = Callable[[SupportsFloat, SupportsFloat], SupportsFloat]
+T = TypeVar("T")
 
 
 @cache
@@ -51,7 +51,3 @@ def ifunc(func: Callable[[SupportsFloat, ...], SupportsFloat]) -> Callable:
         )
 
     return wrapper
-
-
-def copy(obj):
-    return pickle.loads(pickle.dumps(obj))
